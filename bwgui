@@ -1,0 +1,64 @@
+#!/usr/bin/fish
+
+set TIMEOUT_EXIT 5
+set UNLOCK_FAILED_CODE 101
+
+function bw_unlock
+    set -f pw (zenity --password --title "Bitwarden")
+    switch $status
+        case 1
+            exit 0
+        case 5
+            exit $TIMEOUT_EXIT
+    end
+
+    set -gx BW_SESSION (bw unlock --raw $pw)
+
+    switch $status
+        case 0 
+            return 0
+        case '*'
+            bw_unlock
+            return $status
+    end
+end
+
+
+
+
+if test 0 -gt (count $args)
+    exit 1
+end
+
+set -l bw_status (bw status --session "$BW_SESSION"| jq -r '.status')
+
+if test $bw_status = "locked"
+    bw_unlock
+end
+
+set search_term (zenity --entry --title "BitWarden" --text "search")
+if test $status -gt 0
+    exit 0
+end
+
+set search_results (bw list items --search $search_term --session "$BW_SESSION")
+
+# echo $search_results | jq -r '.[] | .name, .login.username'
+# set name (echo $search_results | jq -r '.[] | .name, .login.username' | sd '(.+)\n(.+\n)' '$1 | $2' |  rofi -dmenu -p 'Name' -i -no-custom)
+set item_info (echo $search_results | jq -r '.[] | .id,  .login.password, .name, .login.username' |  \
+    zenity --list --column 'id' --column 'password' --column 'name' --column 'user' --hide-column '1,2' --print-column '1,2,4' --separator ' ' --width 700)
+
+echo $item_info
+set item_id (echo $item_info | choose 0)
+set item_pw (echo $item_info | choose 1)
+set item_un (echo $item_info | choose 2)
+
+echo "$item_id"
+echo "$item_pw"
+
+# xdotool key (echo "$item_un" | string split '' | tr '\n' ' ')
+xdotool type "$item_un"
+xdotool key Tab
+xdotool type "$item_pw"
+# xdotool key return
+
